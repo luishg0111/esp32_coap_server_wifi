@@ -85,34 +85,6 @@ extern uint8_t server_key_end[]   asm("_binary_coap_server_key_end");
 
 #define INITIAL_DATA "Hello World!"
 
-/* Functions mdns */
-void start_mdns_services(void)
-{
-    // Initialize mDNS service
-    printf("\nInitializing mDNS...\n");
-    mdns_init();
-    printf("\nmDNS running...\n");
-
-    // Set Hostname
-    mdns_hostname_set("pill_box");
-    // Set instance
-    //mdns_instance_name_set("pill_box server");
-}
-
-void add_mdns_services(void)
-{
-    //structure with TXT records
-    mdns_txt_item_t serviceTxtData[3] = {
-        {"board", "esp32"},
-        {"u", "admin"},
-        {"p", "password"}
-    };
-
-    // add services
-    mdns_service_add("pill_box", "_coap", "_udp", 5683, serviceTxtData, 3);
-}
-
-
 /*
  * The resource handler
  */
@@ -351,6 +323,99 @@ pillbox_remaining_put(coap_resource_t *resource,
     }
 }
 
+/* Functions mdns */
+void start_mdns_services(void)
+{
+    // Initialize mDNS service
+    printf("\nInitializing mDNS...\n");
+    mdns_init();
+    printf("\nmDNS running...\n");
+
+    // Set Hostname
+    mdns_hostname_set("pill_box");
+    // Set instance
+    //mdns_instance_name_set("pill_box server");
+}
+
+void add_mdns_services(void)
+{
+    //structure with TXT records
+    mdns_txt_item_t serviceTxtData[3] = {
+        {"board", "esp32"},
+        {"u", "admin"},
+        {"p", "password"}
+    };
+
+    // add services
+    mdns_service_add("pill_box", "_coap", "_udp", 5683, serviceTxtData, 3);
+}
+
+static void clean_up_context(coap_context_t *ctx)
+{
+    coap_free_context(ctx);
+    coap_cleanup();
+
+    vTaskDelete(NULL);
+}
+
+static void init_resources(coap_context_t *ctx)
+{
+    coap_resource_t *rsrc_patient = NULL;
+    coap_resource_t *rsrc_medicine = NULL;
+    coap_resource_t *rsrc_often = NULL;
+    coap_resource_t *rsrc_dose = NULL;
+    coap_resource_t *rsrc_remaining = NULL;
+    
+    rsrc_patient = coap_resource_init(coap_make_str_const("pill_box/patient"), 0);
+    if (!rsrc_patient) {
+        ESP_LOGE(TAG, "coap_resource_init() failed");
+        clean_up_context(ctx);
+    }
+    rsrc_medicine = coap_resource_init(coap_make_str_const("pill_box/medicine"), 0);
+    if (!rsrc_medicine) {
+        ESP_LOGE(TAG, "coap_resource_init() failed");
+        clean_up_context(ctx);
+    }
+    rsrc_often = coap_resource_init(coap_make_str_const("pill_box/often"), 0);
+    if (!rsrc_often) {
+        ESP_LOGE(TAG, "coap_resource_init() failed");
+        clean_up_context(ctx);
+    }
+    rsrc_dose = coap_resource_init(coap_make_str_const("pill_box/dose"), 0);
+    if (!rsrc_dose) {
+        ESP_LOGE(TAG, "coap_resource_init() failed");
+        clean_up_context(ctx);
+    }
+    rsrc_remaining = coap_resource_init(coap_make_str_const("pill_box/remaining"), 0);
+    if (!rsrc_remaining) {
+        ESP_LOGE(TAG, "coap_resource_init() failed");
+        clean_up_context(ctx);
+    }
+    coap_register_handler(rsrc_patient, COAP_REQUEST_GET, pillbox_patient_get);
+    coap_register_handler(rsrc_medicine, COAP_REQUEST_GET, pillbox_medicine_get);
+    coap_register_handler(rsrc_often, COAP_REQUEST_GET, pillbox_often_get);
+    coap_register_handler(rsrc_dose, COAP_REQUEST_GET, pillbox_dose_get);
+    coap_register_handler(rsrc_remaining, COAP_REQUEST_GET, pillbox_remaining_get);
+    coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_patient_put);
+    coap_register_handler(rsrc_medicine, COAP_REQUEST_PUT, pillbox_medicine_put);
+    coap_register_handler(rsrc_often, COAP_REQUEST_PUT, pillbox_often_put);
+    coap_register_handler(rsrc_dose, COAP_REQUEST_PUT, pillbox_dose_put);
+    coap_register_handler(rsrc_remaining, COAP_REQUEST_PUT, pillbox_remaining_put);
+
+    /* We possibly want to Observe the GETs */
+    coap_resource_set_get_observable(rsrc_patient, 1);
+    coap_resource_set_get_observable(rsrc_medicine, 1);
+    coap_resource_set_get_observable(rsrc_often, 1);
+    coap_resource_set_get_observable(rsrc_dose, 1);
+    coap_resource_set_get_observable(rsrc_remaining, 1);
+    coap_add_resource(ctx, rsrc_patient);
+    coap_add_resource(ctx, rsrc_medicine);
+    coap_add_resource(ctx, rsrc_often);
+    coap_add_resource(ctx, rsrc_dose);
+    coap_add_resource(ctx, rsrc_remaining);
+}
+
+
 
 #ifdef CONFIG_COAP_MBEDTLS_PKI
 
@@ -370,71 +435,6 @@ verify_cn_callback(const char *cn,
 }
 #endif /* CONFIG_COAP_MBEDTLS_PKI */
 
-static void clean_up_context(coap_context_t *ctx)
-{
-    coap_free_context(ctx);
-    coap_cleanup();
-
-    vTaskDelete(NULL);
-}
-
-// static void init_resources(coap_context_t *ctx)
-// {
-//     coap_resource_t *rsrc_patient = NULL;
-//     coap_resource_t *rsrc_medicine = NULL;
-//     coap_resource_t *rsrc_often = NULL;
-//     coap_resource_t *rsrc_dose = NULL;
-//     coap_resource_t *rsrc_remaining = NULL;
-
-//     rsr_patient = coap_resource_init(coap_make_str_const("pill_box/patient"), 0);
-//     if (!rsrc_patient) {
-//         ESP_LOGE(TAG, "coap_resource_init() failed");
-//         goto clean_up;
-//     }
-//     rsrc_medicine = coap_resource_init(coap_make_str_const("pill_box/medicine"), 0);
-//     if (!rsrc_medicine) {
-//         ESP_LOGE(TAG, "coap_resource_init() failed");
-//         goto clean_up;
-//     }
-//     rsrc_often = coap_resource_init(coap_make_str_const("pill_box/often"), 0);
-//     if (!rsrc_often) {
-//         ESP_LOGE(TAG, "coap_resource_init() failed");
-//         goto clean_up;
-//     }
-//     rsrc_dose = coap_resource_init(coap_make_str_const("pill_box/dose"), 0);
-//     if (!rsrc_dose) {
-//         ESP_LOGE(TAG, "coap_resource_init() failed");
-//         goto clean_up;
-//     }
-//     rsrc_remaining = coap_resource_init(coap_make_str_const("pill_box/remaining"), 0);
-//     if (!rsrc_remaining) {
-//         ESP_LOGE(TAG, "coap_resource_init() failed");
-//         goto clean_up;
-//     }
-//     coap_register_handler(rsrc_patient, COAP_REQUEST_GET, pillbox_patient_get);
-//     coap_register_handler(rsrc_medicine, COAP_REQUEST_GET, pillbox_medicine_get);
-//     coap_register_handler(rsrc_often, COAP_REQUEST_GET, pillbox_often_get);
-//     coap_register_handler(rsrc_dose, COAP_REQUEST_GET, pillbox_dose_get);
-//     coap_register_handler(rsrc_remaining, COAP_REQUEST_GET, pillbox_remaining_get);
-//     coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_patient_put);
-//     coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_medicine_put);
-//     coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_often_put);
-//     coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_dose_put);
-//     coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_remaining_put);
-//     /* We possibly want to Observe the GETs */
-//     coap_resource_set_get_observable(rsrc_patient, 1);
-//     coap_resource_set_get_observable(rsrc_medicine, 1);
-//     coap_resource_set_get_observable(rsrc_often, 1);
-//     coap_resource_set_get_observable(rsrc_dose, 1);
-//     coap_resource_set_get_observable(rsrc_remaining, 1);
-    
-//     coap_add_resource(ctx, rsrc_patient);
-//     coap_add_resource(ctx, rsrc_medicine);
-//     coap_add_resource(ctx, rsrc_often);
-//     coap_add_resource(ctx, rsrc_dose);
-//     coap_add_resource(ctx, rsrc_remaining);
-// }
-
 static void
 coap_log_handler (coap_log_t level, const char *message)
 {
@@ -451,11 +451,6 @@ static void coap_example_server(void *p)
 {
     coap_context_t *ctx = NULL;
     coap_address_t serv_addr;
-    coap_resource_t *rsrc_patient = NULL;
-    coap_resource_t *rsrc_medicine = NULL;
-    coap_resource_t *rsrc_often = NULL;
-    coap_resource_t *rsrc_dose = NULL;
-    coap_resource_t *rsrc_remaining = NULL;
 
     start_mdns_services();
     add_mdns_services();
@@ -538,13 +533,13 @@ static void coap_example_server(void *p)
         ep = coap_new_endpoint(ctx, &serv_addr, COAP_PROTO_UDP);
         if (!ep) {
             ESP_LOGE(TAG, "udp: coap_new_endpoint() failed");
-            goto clean_up;
+            clean_up_context(ctx);
         }
         if (coap_tcp_is_supported()) {
             ep = coap_new_endpoint(ctx, &serv_addr, COAP_PROTO_TCP);
             if (!ep) {
                 ESP_LOGE(TAG, "tcp: coap_new_endpoint() failed");
-                goto clean_up;
+                clean_up_context(ctx);
             }
         }
 #if defined(CONFIG_COAP_MBEDTLS_PSK) || defined(CONFIG_COAP_MBEDTLS_PKI)
@@ -557,7 +552,7 @@ static void coap_example_server(void *p)
             ep = coap_new_endpoint(ctx, &serv_addr, COAP_PROTO_DTLS);
             if (!ep) {
                 ESP_LOGE(TAG, "dtls: coap_new_endpoint() failed");
-                goto clean_up;
+                clean_up_context(ctx);
             }
             have_dtls = 1;
 #endif /* CONFIG_MBEDTLS_TLS_SERVER */
@@ -571,7 +566,7 @@ static void coap_example_server(void *p)
             ep = coap_new_endpoint(ctx, &serv_addr, COAP_PROTO_TLS);
             if (!ep) {
                 ESP_LOGE(TAG, "tls: coap_new_endpoint() failed");
-                goto clean_up;
+                clean_up_context(ctx);
             }
 #endif /* CONFIG_MBEDTLS_TLS_SERVER */
         }
@@ -580,53 +575,7 @@ static void coap_example_server(void *p)
             ESP_LOGI(TAG, "MbedTLS (D)TLS Server Mode not configured");
         }
 #endif /* CONFIG_COAP_MBEDTLS_PSK || CONFIG_COAP_MBEDTLS_PKI */
-        rsrc_patient = coap_resource_init(coap_make_str_const("pill_box/patient"), 0);
-        if (!rsrc_patient) {
-            ESP_LOGE(TAG, "coap_resource_init() failed");
-            goto clean_up;
-        }
-        rsrc_medicine = coap_resource_init(coap_make_str_const("pill_box/medicine"), 0);
-        if (!rsrc_medicine) {
-            ESP_LOGE(TAG, "coap_resource_init() failed");
-            goto clean_up;
-        }
-        rsrc_often = coap_resource_init(coap_make_str_const("pill_box/often"), 0);
-        if (!rsrc_often) {
-            ESP_LOGE(TAG, "coap_resource_init() failed");
-            goto clean_up;
-        }
-        rsrc_dose = coap_resource_init(coap_make_str_const("pill_box/dose"), 0);
-        if (!rsrc_dose) {
-            ESP_LOGE(TAG, "coap_resource_init() failed");
-            goto clean_up;
-        }
-        rsrc_remaining = coap_resource_init(coap_make_str_const("pill_box/remaining"), 0);
-        if (!rsrc_remaining) {
-            ESP_LOGE(TAG, "coap_resource_init() failed");
-            goto clean_up;
-        }
-        coap_register_handler(rsrc_patient, COAP_REQUEST_GET, pillbox_patient_get);
-        coap_register_handler(rsrc_medicine, COAP_REQUEST_GET, pillbox_medicine_get);
-        coap_register_handler(rsrc_often, COAP_REQUEST_GET, pillbox_often_get);
-        coap_register_handler(rsrc_dose, COAP_REQUEST_GET, pillbox_dose_get);
-        coap_register_handler(rsrc_remaining, COAP_REQUEST_GET, pillbox_remaining_get);
-        coap_register_handler(rsrc_patient, COAP_REQUEST_PUT, pillbox_patient_put);
-        coap_register_handler(rsrc_medicine, COAP_REQUEST_PUT, pillbox_medicine_put);
-        coap_register_handler(rsrc_often, COAP_REQUEST_PUT, pillbox_often_put);
-        coap_register_handler(rsrc_dose, COAP_REQUEST_PUT, pillbox_dose_put);
-        coap_register_handler(rsrc_remaining, COAP_REQUEST_PUT, pillbox_remaining_put);
-        /* We possibly want to Observe the GETs */
-        coap_resource_set_get_observable(rsrc_patient, 1);
-        coap_resource_set_get_observable(rsrc_medicine, 1);
-        coap_resource_set_get_observable(rsrc_often, 1);
-        coap_resource_set_get_observable(rsrc_dose, 1);
-        coap_resource_set_get_observable(rsrc_remaining, 1);
-
-        coap_add_resource(ctx, rsrc_patient);
-        coap_add_resource(ctx, rsrc_medicine);
-        coap_add_resource(ctx, rsrc_often);
-        coap_add_resource(ctx, rsrc_dose);
-        coap_add_resource(ctx, rsrc_remaining);
+        init_resources(ctx);
 
 #if defined(CONFIG_EXAMPLE_COAP_MCAST_IPV4) || defined(CONFIG_EXAMPLE_COAP_MCAST_IPV6)
         esp_netif_t *netif = NULL;
@@ -660,11 +609,6 @@ static void coap_example_server(void *p)
             }
         }
     }
-clean_up:
-    coap_free_context(ctx);
-    coap_cleanup();
-
-    vTaskDelete(NULL);
 }
 
 void app_main(void)
